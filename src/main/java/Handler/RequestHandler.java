@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Base64;
 
 //Luca
 public class RequestHandler {
@@ -47,8 +48,8 @@ class ReceiveClient implements Runnable{
             Socket socket = serverSocket.accept();
             //Får ID til klienten
             int id = getId();
-            //Starter request metoden med socket og fundne ID
-            receiveRequest(socket, id);
+            //Starter ny client thread med socket og fundne ID
+            newClientThread(socket, id);
             //Giver sessionmanageren socket og id
             sessionManager.addClient(socket, id);
         } catch (IOException e) {
@@ -56,18 +57,60 @@ class ReceiveClient implements Runnable{
         }
     }
 
-    private void receiveRequest(Socket socket, int id){
+    private void newClientThread(Socket socket, int id){
+        Thread thread = new Thread(new Client(socket, sessionManager, distributor, id));
+        thread.start();
+    }
+
+    private int getId(){
+        id++;
+        return id;
+    }
+
+    @Override
+    public void run() {
+        while(true){
+            receive();
+        }
+    }
+}
+
+class Client implements Runnable{
+
+    private Socket socket;
+    private BufferedReader bufferedReader;
+    private SessionManager sessionManager;
+    private Distributor distributor;
+    private JSONParser jsonParser;
+    private int id;
+
+    public Client(Socket socket, SessionManager sessionManager, Distributor distributor, int id) {
+        this.socket = socket;
+        this.sessionManager = sessionManager;
+        this.distributor = distributor;
+        this.id = id;
+        this.jsonParser = new JSONParser();
+        try {
+            bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void receiveRequest(){
         try {
             try {
                 //Læs JSONObject fra klienten
-                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                JSONObject jsonObject = (JSONObject) jsonParser.parse(bufferedReader.readLine());
+                String received = bufferedReader.readLine();
 
-                //Hiv hvilken service der skal bruges (String) og billede (BufferedImage) ud
-                //Her er det forudindtaget at billedet bliver sendt som et array af bytes
-                //Tror jeg er det nemmeste - Luca
+                JSONObject jsonObject = (JSONObject) jsonParser.parse(received);
+
+                //Hiver hvilken service der skal bruges (String) og billede (BufferedImage) ud
+                String base64bytes = (String) jsonObject.get("image");
+                byte[] bytes = Base64.getDecoder().decode(base64bytes);
+
                 String service = (String) jsonObject.get("service");
-                InputStream in = new ByteArrayInputStream((byte[]) jsonObject.get("image"));
+                InputStream in = new ByteArrayInputStream(bytes);
                 BufferedImage imageFromBytes = ImageIO.read(in);
 
                 //Så bliver det sendt over til distributoren
@@ -80,15 +123,10 @@ class ReceiveClient implements Runnable{
         }
     }
 
-    private int getId(){
-        id++;
-        return id;
-    }
-
     @Override
     public void run() {
         while(true){
-            receive();
+            receiveRequest();
         }
     }
 }

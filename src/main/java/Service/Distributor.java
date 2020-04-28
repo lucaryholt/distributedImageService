@@ -14,13 +14,10 @@ import java.util.Queue;
 import Model.Result;
 import com.amazonaws.services.rekognition.AmazonRekognition;
 import com.amazonaws.services.rekognition.AmazonRekognitionClientBuilder;
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.rekognition.model.AmazonRekognitionException;
 import com.amazonaws.services.rekognition.model.DetectLabelsRequest;
 import com.amazonaws.services.rekognition.model.DetectLabelsResult;
 import com.amazonaws.services.rekognition.model.Image;
 import com.amazonaws.services.rekognition.model.Label;
-import com.amazonaws.util.IOUtils;
 
 import javax.imageio.ImageIO;
 
@@ -103,7 +100,7 @@ class AmazonQueueHandler implements Runnable{
                 DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
 
                 //Instantiate new Result object, then pass it to ResponseHandler
-                responseHandler.setResult(makeResultFromRequest(result, job));
+                responseHandler.sendResult(makeResultFromRequest(result, job));
             } catch (Exception e) {
                 e.printStackTrace();
             }
