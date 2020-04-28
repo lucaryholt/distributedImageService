@@ -1,6 +1,5 @@
 package Handler;
 
-
 import org.json.simple.JSONObject;
 
 import java.io.IOException;
