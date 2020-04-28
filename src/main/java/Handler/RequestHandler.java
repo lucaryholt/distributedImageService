@@ -43,9 +43,13 @@ class ReceiveClient implements Runnable{
 
     private void receive(){
         try {
+            //Serveren tager imod en klient
             Socket socket = serverSocket.accept();
+            //Får ID til klienten
             int id = getId();
+            //Starter request metoden med socket og fundne ID
             receiveRequest(socket, id);
+            //Giver sessionmanageren socket og id
             sessionManager.addClient(socket, id);
         } catch (IOException e) {
             e.printStackTrace();
@@ -55,13 +59,18 @@ class ReceiveClient implements Runnable{
     private void receiveRequest(Socket socket, int id){
         try {
             try {
+                //Læs JSONObject fra klienten
                 BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 JSONObject jsonObject = (JSONObject) jsonParser.parse(bufferedReader.readLine());
 
+                //Hiv hvilken service der skal bruges (String) og billede (BufferedImage) ud
+                //Her er det forudindtaget at billedet bliver sendt som et array af bytes
+                //Tror jeg er det nemmeste - Luca
                 String service = (String) jsonObject.get("service");
                 InputStream in = new ByteArrayInputStream((byte[]) jsonObject.get("image"));
                 BufferedImage imageFromBytes = ImageIO.read(in);
 
+                //Så bliver det sendt over til distributoren
                 distributor.addJob(id, service, imageFromBytes);
             } catch (ParseException e) {
                 e.printStackTrace();

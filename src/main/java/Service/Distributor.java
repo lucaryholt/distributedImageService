@@ -20,18 +20,21 @@ import com.amazonaws.services.rekognition.model.Image;
 import com.amazonaws.services.rekognition.model.Label;
 import com.amazonaws.util.IOUtils;
 
+//Luca
 public class Distributor {
 
     private Queue<Job> googleQueue = new LinkedList<>();
     private Queue<Job> amazonQueue = new LinkedList<>();
 
     public Distributor() {
+        //Starter de to threads til håndtering af de to køer
         Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue));
         Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue));
         googleThread.start();
         amazonThread.start();
     }
 
+    //Tager imod jobs fra RequestHandleren og deler dem ud til de rigtige køer
     public synchronized void addJob(int id, String service, BufferedImage image){
         Job job = new Job(id, image);
         switch (service){
@@ -52,6 +55,7 @@ class GoogleQueueHandler implements Runnable{
         this.queue = queue;
     }
 
+    //TODO Den her skal hive forreste Job og håndtere det og til sidst sende det til responseHandleren som result
     private void processJob(){
         if(queue.peek() != null){
             //Do something with job
@@ -85,21 +89,21 @@ class AmazonQueueHandler implements Runnable{
                 imageBytes = ByteBuffer.wrap(IOUtils.toByteArray(inputStream));
 
 
-            AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
+                AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
 
-            DetectLabelsRequest request = new DetectLabelsRequest()
-                    .withImage(new Image()
-                            .withBytes(imageBytes))
-                    .withMaxLabels(10)
-                    .withMinConfidence(77F);
+                DetectLabelsRequest request = new DetectLabelsRequest()
+                        .withImage(new Image()
+                                .withBytes(imageBytes))
+                        .withMaxLabels(10)
+                        .withMinConfidence(77F);
 
-            DetectLabelsResult result = rekognitionClient.detectLabels(request);
-            List<Label> labels = result.getLabels();
+                DetectLabelsResult result = rekognitionClient.detectLabels(request);
+                List<Label> labels = result.getLabels();
 
-            System.out.println("Detected labels for " + photo);
-            for (Label label: labels) {
-                System.out.println(label.getName() + ": " + label.getConfidence().toString());
-            }
+                System.out.println("Detected labels for " + photo);
+                for (Label label: labels) {
+                    System.out.println(label.getName() + ": " + label.getConfidence().toString());
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
