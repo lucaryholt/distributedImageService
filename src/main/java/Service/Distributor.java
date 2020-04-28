@@ -1,15 +1,17 @@
 package Service;
 
+import Handler.ResponseHandler;
 import Model.Job;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+
+import Model.Result;
 import com.amazonaws.services.rekognition.AmazonRekognition;
 import com.amazonaws.services.rekognition.AmazonRekognitionClientBuilder;
 import com.amazonaws.AmazonClientException;
@@ -20,16 +22,22 @@ import com.amazonaws.services.rekognition.model.Image;
 import com.amazonaws.services.rekognition.model.Label;
 import com.amazonaws.util.IOUtils;
 
+import javax.imageio.ImageIO;
+
 //Luca
 public class Distributor {
 
     private Queue<Job> googleQueue = new LinkedList<>();
     private Queue<Job> amazonQueue = new LinkedList<>();
 
-    public Distributor() {
+    private ResponseHandler responseHandler;
+
+    public Distributor(ResponseHandler responseHandler) {
+        this.responseHandler = responseHandler;
+
         //Starter de to threads til håndtering af de to køer
-        Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue));
-        Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue));
+        Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue, responseHandler));
+        Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue, responseHandler));
         googleThread.start();
         amazonThread.start();
     }
@@ -50,9 +58,11 @@ public class Distributor {
 class GoogleQueueHandler implements Runnable{
 
     private Queue<Job> queue;
+    private ResponseHandler responseHandler;
 
-    public GoogleQueueHandler(Queue<Job> queue) {
+    public GoogleQueueHandler(Queue<Job> queue, ResponseHandler responseHandler) {
         this.queue = queue;
+        this.responseHandler = responseHandler;
     }
 
     //TODO Den her skal hive forreste Job og håndtere det og til sidst sende det til responseHandleren som result
@@ -73,42 +83,56 @@ class GoogleQueueHandler implements Runnable{
 class AmazonQueueHandler implements Runnable{
 
     private Queue<Job> queue;
+    private ResponseHandler responseHandler;
 
-    public AmazonQueueHandler(Queue<Job> queue) {
+    public AmazonQueueHandler(Queue<Job> queue, ResponseHandler responseHandler) {
         this.queue = queue;
+        this.responseHandler = responseHandler;
     }
 
     private void processJob(){
         if(queue.peek() != null){
             //See source: https://docs.aws.amazon.com/rekognition/latest/dg/images-bytes.html
 
-            String photo = "input.jpg";
+            Job job = queue.remove();
 
-            ByteBuffer imageBytes;
-            try (InputStream inputStream = new FileInputStream(new File(photo))) {
-                imageBytes = ByteBuffer.wrap(IOUtils.toByteArray(inputStream));
-
-
+            try{
                 AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
 
                 DetectLabelsRequest request = new DetectLabelsRequest()
-                        .withImage(new Image()
-                                .withBytes(imageBytes))
+                        .withImage(convertImage(job.getImage()))
                         .withMaxLabels(10)
                         .withMinConfidence(77F);
 
+                //Send and get response from Amazon
                 DetectLabelsResult result = rekognitionClient.detectLabels(request);
                 List<Label> labels = result.getLabels();
 
-                System.out.println("Detected labels for " + photo);
+                //We instantiate and fill in results from Amazon Labels
+                List<String> results = new ArrayList<>();
                 for (Label label: labels) {
-                    System.out.println(label.getName() + ": " + label.getConfidence().toString());
+                    results.add(label.getName() + ": " + label.getConfidence().toString());
                 }
 
+                //Instantiate new Result object, then pass it to ResponseHandler
+                responseHandler.setResult(new Result(results, job.getId()));
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    //Converts BufferedImage to Amazon Image Object
+    private Image convertImage(BufferedImage image){
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", baos);
+            ByteBuffer byteBuffer = ByteBuffer.wrap(baos.toByteArray());
+            return new Image().withBytes(byteBuffer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     @Override

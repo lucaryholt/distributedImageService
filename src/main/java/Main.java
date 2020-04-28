@@ -7,9 +7,9 @@ public class Main {
 
     public static void main(String[] args) {
         SessionManager sessionManager = new SessionManager();
+        ResponseHandler responseHandler = new ResponseHandler(sessionManager);
         Distributor distributor = new Distributor();
         new RequestHandler(6000, sessionManager, distributor);
-        new ResponseHandler(sessionManager);
     }
 
 }

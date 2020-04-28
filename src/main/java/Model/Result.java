@@ -1,23 +1,25 @@
 package Model;
 
+import java.util.List;
+
 public class Result {
 
-    private String result;
+    private List<String> result;
     private int id;
 
     public Result() {
     }
 
-    public Result(String result, int id) {
+    public Result(List<String> result, int id) {
         this.result = result;
         this.id = id;
     }
 
-    public String getResult() {
+    public List<String> getResult() {
         return result;
     }
 
-    public void setResult(String result) {
+    public void setResult(List<String> result) {
         this.result = result;
     }
 
