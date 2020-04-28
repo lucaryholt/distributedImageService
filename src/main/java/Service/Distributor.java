@@ -99,27 +99,34 @@ class AmazonQueueHandler implements Runnable{
             try{
                 AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
 
-                DetectLabelsRequest request = new DetectLabelsRequest()
-                        .withImage(convertImage(job.getImage()))
-                        .withMaxLabels(10)
-                        .withMinConfidence(77F);
-
                 //Send and get response from Amazon
-                DetectLabelsResult result = rekognitionClient.detectLabels(request);
-                List<Label> labels = result.getLabels();
-
-                //We instantiate and fill in results from Amazon Labels
-                List<String> results = new ArrayList<>();
-                for (Label label: labels) {
-                    results.add(label.getName() + ": " + label.getConfidence().toString());
-                }
+                DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
 
                 //Instantiate new Result object, then pass it to ResponseHandler
-                responseHandler.setResult(new Result(results, job.getId()));
+                responseHandler.setResult(makeResultFromRequest(result, job));
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    private DetectLabelsRequest makeRequestFromJob(Job job){
+        return new DetectLabelsRequest()
+                .withImage(convertImage(job.getImage()))
+                .withMaxLabels(10)
+                .withMinConfidence(77F);
+    }
+
+    private Result makeResultFromRequest(DetectLabelsResult detectLabelsResult, Job job){
+        List<Label> labels = detectLabelsResult.getLabels();
+
+        //We instantiate and fill in results from Amazon Labels
+        List<String> results = new ArrayList<>();
+        for (Label label: labels) {
+            results.add(label.getName() + ": " + label.getConfidence().toString());
+        }
+
+        return new Result(results, job.getId());
     }
 
     //Converts BufferedImage to Amazon Image Object
