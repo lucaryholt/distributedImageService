@@ -30,7 +30,7 @@ public class ResponseHandler {
             jsonObject.put("result", result.getResult());
             jsonObject.put("id", clientId);
 
-            System.out.println(jsonObject);
+            System.out.println("sending results to " + clientId + "...");
 
             // Send JSONObject to client
             out.println(jsonObject.toJSONString());

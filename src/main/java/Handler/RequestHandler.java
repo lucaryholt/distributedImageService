@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Base64;
 
 //Luca
@@ -79,6 +80,7 @@ class Client implements Runnable{
     private Distributor distributor;
     private JSONParser jsonParser;
     private int id;
+    private boolean run = true;
 
     public Client(Socket socket, Distributor distributor, int id) {
         this.distributor = distributor;
@@ -89,6 +91,8 @@ class Client implements Runnable{
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        System.out.println("client " + id + " connected...");
     }
 
     private void receiveRequest(){
@@ -96,7 +100,6 @@ class Client implements Runnable{
             try {
                 //Læs JSONObject fra klienten
                 String received = bufferedReader.readLine();
-
                 JSONObject jsonObject = (JSONObject) jsonParser.parse(received);
 
                 //Hiver hvilken service der skal bruges (String) og billede (BufferedImage) ud
@@ -107,10 +110,15 @@ class Client implements Runnable{
                 InputStream in = new ByteArrayInputStream(bytes);
                 BufferedImage imageFromBytes = ImageIO.read(in);
 
+                System.out.println("received image from " + id + "...");
+
                 //Så bliver det sendt over til distributoren
                 distributor.addJob(id, service, imageFromBytes);
             } catch (ParseException e) {
                 e.printStackTrace();
+            } catch (SocketException e){
+                System.out.println(id + " disconnected...");
+                run = false;
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -119,7 +127,7 @@ class Client implements Runnable{
 
     @Override
     public void run() {
-        while(true){
+        while(run){
             receiveRequest();
         }
     }

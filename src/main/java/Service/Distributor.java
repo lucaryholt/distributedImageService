@@ -44,8 +44,10 @@ public class Distributor {
         Job job = new Job(id, image);
         switch (service){
             case "google"   :   googleQueue.add(job);
+                                System.out.println("added job to google queue from " + id + "...");
                                 break;
             case "amazon"   :   amazonQueue.add(job);
+                                System.out.println("added job to amazon queue from " + id + "...");
                                 break;
         }
     }
@@ -88,16 +90,21 @@ class AmazonQueueHandler implements Runnable{
     }
 
     private void processJob(){
-        if(queue.peek() != null){
+        //System.out.println("checking.");
+        if(queue.size() != 0){
             //See source: https://docs.aws.amazon.com/rekognition/latest/dg/images-bytes.html
 
             Job job = queue.remove();
+
+            System.out.println("sending image to amazon from " + job.getId() + "...");
 
             try{
                 AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
 
                 //Send and get response from Amazon
                 DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
+
+                System.out.println("received data from amazon to " + job.getId() + "...");
 
                 //Instantiate new Result object, then pass it to ResponseHandler
                 responseHandler.sendResult(makeResultFromRequest(result, job));
@@ -143,6 +150,11 @@ class AmazonQueueHandler implements Runnable{
     public void run() {
         while(true){
             processJob();
+            try {
+                Thread.sleep(50); //Without this it does not work... I have no idea why...
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 }
