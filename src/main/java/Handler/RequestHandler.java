@@ -16,10 +16,10 @@ public class RequestHandler {
 class ReceiveClient implements Runnable{
 
     private ServerSocket serverSocket;
-    private SessionHandler sessionHandler;
+    private SessionManager sessionManager;
 
-    public ReceiveClient(int port, SessionHandler sessionHandler){
-        this.sessionHandler = sessionHandler;
+    public ReceiveClient(int port, SessionManager sessionManager){
+        this.sessionManager = sessionManager;
         try{
             serverSocket = new ServerSocket(port);
         }catch(IOException e){
