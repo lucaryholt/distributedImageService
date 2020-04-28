@@ -14,15 +14,7 @@ import java.net.Socket;
 //Luca
 public class RequestHandler {
 
-    private int port;
-    private SessionManager sessionManager;
-    private Distributor distributor;
-
     public RequestHandler(int port, SessionManager sessionManager, Distributor distributor) {
-        this.port = port;
-        this.sessionManager = sessionManager;
-        this.distributor = distributor;
-
         Thread thread = new Thread(new ReceiveClient(port, sessionManager, distributor));
         thread.start();
     }
@@ -70,7 +62,7 @@ class ReceiveClient implements Runnable{
                 InputStream in = new ByteArrayInputStream((byte[]) jsonObject.get("image"));
                 BufferedImage imageFromBytes = ImageIO.read(in);
 
-                //distributor.addJob(id, service, imageFromBytes);
+                distributor.addJob(id, service, imageFromBytes);
             } catch (ParseException e) {
                 e.printStackTrace();
             }
