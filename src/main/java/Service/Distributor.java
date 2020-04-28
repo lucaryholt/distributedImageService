@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.util.LinkedList;
 import java.util.Queue;
 
+
 public class Distributor {
 
     private Queue<Job> googleQueue = new LinkedList<>();
@@ -63,6 +64,7 @@ class AmazonQueueHandler implements Runnable{
     private void processJob(){
         if(queue.peek() != null){
             //Do something with job
+
         }
     }
 
