@@ -11,7 +11,6 @@ public class ResponseHandler implements Runnable {
 
     private SessionManager sessionManager;
     private Result result;
-    private int clientId;
 
     public ResponseHandler(SessionManager sessionManager) {
         this.sessionManager = sessionManager;
@@ -19,6 +18,7 @@ public class ResponseHandler implements Runnable {
 
     public void run() {
         while (true) {
+            int clientId = result.getId();
             if (clientId > 0) {
                 try {
                     // Get socket from session manager
@@ -29,8 +29,9 @@ public class ResponseHandler implements Runnable {
 
                     // Instantiate JSONObject
                     JSONObject jsonObject = new JSONObject();
+                    // Populate JSONObject
                     jsonObject.put("result", result.getResult());
-                    jsonObject.put("id", result.getId());
+                    jsonObject.put("id", clientId);
 
                     // Send JSONObject to client
                     out.println(jsonObject.toJSONString());
@@ -41,8 +42,7 @@ public class ResponseHandler implements Runnable {
         }
     }
 
-    public void setResult(Result result, int clientId) {
+    public void setResult(Result result) {
         this.result = result;
-        this.clientId = clientId;
     }
 }
