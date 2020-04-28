@@ -11,9 +11,18 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+//Luca
 public class RequestHandler {
 
-    public void initianeReceiveClient(int port, SessionManager sessionManager, Distributor distributor){
+    private int port;
+    private SessionManager sessionManager;
+    private Distributor distributor;
+
+    public RequestHandler(int port, SessionManager sessionManager, Distributor distributor) {
+        this.port = port;
+        this.sessionManager = sessionManager;
+        this.distributor = distributor;
+
         Thread thread = new Thread(new ReceiveClient(port, sessionManager, distributor));
         thread.start();
     }
