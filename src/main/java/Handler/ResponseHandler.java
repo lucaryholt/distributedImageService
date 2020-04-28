@@ -22,7 +22,7 @@ public class ResponseHandler {
             Socket socket = sessionManager.getClient(clientId);
 
             // Instantiate PrintWriter to send response to client
-            PrintWriter out = new PrintWriter(socket.getOutputStream());
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 
             // Instantiate JSONObject
             JSONObject jsonObject = new JSONObject();
