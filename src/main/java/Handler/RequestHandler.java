@@ -27,14 +27,12 @@ class ReceiveClient implements Runnable{
 
     private ServerSocket serverSocket;
     private SessionManager sessionManager;
-    private JSONParser jsonParser;
     private Distributor distributor;
     private int id = 0;
 
     public ReceiveClient(int port, SessionManager sessionManager, Distributor distributor){
         this.sessionManager = sessionManager;
         this.distributor = distributor;
-        this.jsonParser = new JSONParser();
         try{
             serverSocket = new ServerSocket(port);
         }catch(IOException e){
@@ -58,7 +56,7 @@ class ReceiveClient implements Runnable{
     }
 
     private void newClientThread(Socket socket, int id){
-        Thread thread = new Thread(new Client(socket, sessionManager, distributor, id));
+        Thread thread = new Thread(new Client(socket, distributor, id));
         thread.start();
     }
 
@@ -77,16 +75,12 @@ class ReceiveClient implements Runnable{
 
 class Client implements Runnable{
 
-    private Socket socket;
     private BufferedReader bufferedReader;
-    private SessionManager sessionManager;
     private Distributor distributor;
     private JSONParser jsonParser;
     private int id;
 
-    public Client(Socket socket, SessionManager sessionManager, Distributor distributor, int id) {
-        this.socket = socket;
-        this.sessionManager = sessionManager;
+    public Client(Socket socket, Distributor distributor, int id) {
         this.distributor = distributor;
         this.id = id;
         this.jsonParser = new JSONParser();
