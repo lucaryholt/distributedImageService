@@ -1,5 +1,6 @@
 package Handler;
 
+import Model.Result;
 import org.json.simple.JSONObject;
 
 import java.io.IOException;
@@ -9,7 +10,7 @@ import java.net.Socket;
 public class ResponseHandler implements Runnable {
 
     private SessionManager sessionManager;
-    private JSONObject result;
+    private Result result;
     private int clientId;
 
     public ResponseHandler(SessionManager sessionManager) {
@@ -17,18 +18,30 @@ public class ResponseHandler implements Runnable {
     }
 
     public void run() {
-        if (clientId > 0) {
-            try {
-                Socket socket = sessionManager.getClient(clientId);
-                PrintWriter out = new PrintWriter(socket.getOutputStream());
-                out.println(result.toJSONString());
-            } catch (IOException e) {
-                e.printStackTrace();
+        while (true) {
+            if (clientId > 0) {
+                try {
+                    // Get socket from session manager
+                    Socket socket = sessionManager.getClient(clientId);
+
+                    // Instantiate PrintWriter to send response to client
+                    PrintWriter out = new PrintWriter(socket.getOutputStream());
+
+                    // Instantiate JSONObject
+                    JSONObject jsonObject = new JSONObject();
+                    jsonObject.put("result", result.getResult());
+                    jsonObject.put("id", result.getId());
+
+                    // Send JSONObject to client
+                    out.println(jsonObject.toJSONString());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
 
-    public void setResult(JSONObject result, int clientId) {
+    public void setResult(Result result, int clientId) {
         this.result = result;
         this.clientId = clientId;
     }
