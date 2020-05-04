@@ -18,6 +18,10 @@ import com.amazonaws.services.rekognition.model.DetectLabelsRequest;
 import com.amazonaws.services.rekognition.model.DetectLabelsResult;
 import com.amazonaws.services.rekognition.model.Image;
 import com.amazonaws.services.rekognition.model.Label;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.vision.v1.*;
+import com.google.common.collect.Lists;
+import com.google.protobuf.ByteString;
 
 import javax.imageio.ImageIO;
 
@@ -58,17 +62,62 @@ class GoogleQueueHandler implements Runnable{
 
     private Queue<Job> queue;
     private ResponseHandler responseHandler;
+    private ImageAnnotatorClient vision;
 
+    //TODO Can't authorize at the moment. Have tried setting environment variables on Windows and Mac
+    //Google just can't read them for some reason... But logic should work.
     public GoogleQueueHandler(Queue<Job> queue, ResponseHandler responseHandler) {
         this.queue = queue;
         this.responseHandler = responseHandler;
+        try {
+            vision = ImageAnnotatorClient.create();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    //TODO Den her skal hive forreste Job og håndtere det og til sidst sende det til responseHandleren som result
     private void processJob(){
         if(queue.peek() != null){
-            //Do something with job
+            Job job = queue.remove();
+
+            System.out.println("sending image to google from " + job.getId() + "...");
+
+            //Build image annotation request
+            List<AnnotateImageRequest> requests = new ArrayList<>();
+            Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
+            AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
+            requests.add(request);
+
+            System.out.println("received data from google to " + job.getId() + "...");
+
+            //Get response
+            BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
+            List<AnnotateImageResponse> responses = response.getResponsesList();
+
+            for(AnnotateImageResponse res : responses){
+                for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
+                    System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
+                }
+            }
         }
+    }
+
+    private com.google.cloud.vision.v1.Image convertImage(BufferedImage image){
+        try {
+            //Convert bufferedImage to ByteString
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "jpg", baos);
+            baos.flush();
+            byte[] byteArray = baos.toByteArray();
+            baos.close();
+            ByteString imgBytes = ByteString.copyFrom(byteArray);
+
+            //Convert byte array to Google Vision Image
+            return com.google.cloud.vision.v1.Image.newBuilder().setContent(imgBytes).build();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     @Override
