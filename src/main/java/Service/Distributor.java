@@ -146,21 +146,48 @@ class AmazonQueueHandler implements Runnable{
 
             Job job = queue.remove();
 
-            System.out.println("sending image to amazon from " + job.getId() + "...");
+            Thread jobThread = new Thread(new AmazonJob(responseHandler, job));
+            jobThread.start();
+        }
+    }
 
-            try{
-                AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
-
-                //Send and get response from Amazon
-                DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
-
-                System.out.println("received data from amazon to " + job.getId() + "...");
-
-                //Instantiate new Result object, then pass it to ResponseHandler
-                responseHandler.sendResult(makeResultFromRequest(result, job));
-            } catch (Exception e) {
+    @Override
+    public void run() {
+        while(true){
+            processJob();
+            try {
+                Thread.sleep(50); //Without this it does not work... I have no idea why...
+            } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+    }
+}
+
+class AmazonJob implements Runnable{
+
+    private ResponseHandler responseHandler;
+    private Job job;
+
+    public AmazonJob(ResponseHandler responseHandler, Job job) {
+        this.responseHandler = responseHandler;
+    }
+
+    private void processJob(){
+        System.out.println("sending image to amazon from " + job.getId() + "...");
+
+        try{
+            AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
+
+            //Send and get response from Amazon
+            DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
+
+            System.out.println("received data from amazon to " + job.getId() + "...");
+
+            //Instantiate new Result object, then pass it to ResponseHandler
+            responseHandler.sendResult(makeResultFromRequest(result, job));
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -198,13 +225,6 @@ class AmazonQueueHandler implements Runnable{
 
     @Override
     public void run() {
-        while(true){
-            processJob();
-            try {
-                Thread.sleep(50); //Without this it does not work... I have no idea why...
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
+        processJob();
     }
 }
