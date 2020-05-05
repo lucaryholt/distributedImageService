@@ -93,6 +93,9 @@ class GoogleQueueHandler implements Runnable{
 
             System.out.println("received data from google to " + job.getId() + "...");
 
+            List<String> results = new ArrayList<>();
+            results.add("Results from Google Vision:");
+
             //Get response
             if (vision != null) {
                 BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
@@ -103,12 +106,13 @@ class GoogleQueueHandler implements Runnable{
                         System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
                     }
                 }
+            }else{
+                //As this is not working ATM we just send a "fake" result back
+                results.add("This is an image");
             }
 
-            //As this is not working ATM we just send a "fake" result back
-            List<String> fakeResult = new ArrayList<>();
-            fakeResult.add("This is an image");
-            responseHandler.sendResult(new Result(fakeResult, job.getId()));
+            //The result is handed to the ResponseHandler
+            responseHandler.sendResult(new Result(results, job.getId()));
         }
     }
 
@@ -199,6 +203,7 @@ class AmazonQueueHandler implements Runnable{
 
         //We instantiate and fill in results from Amazon Labels
         List<String> results = new ArrayList<>();
+        results.add("Results from Amazon Rekognition:");
         for (Label label: labels) {
             results.add(label.getName() + ": " + label.getConfidence().toString());
         }
