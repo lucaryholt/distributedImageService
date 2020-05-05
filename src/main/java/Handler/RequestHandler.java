@@ -43,13 +43,13 @@ class ReceiveClient implements Runnable{
 
     private void receive(){
         try {
-            //Serveren tager imod en klient
+            //The server accepts a klient
             Socket socket = serverSocket.accept();
             //Får ID til klienten
             int id = getId();
-            //Starter ny client thread med socket og fundne ID
+            //Starts a new client thread with socket and found ID
             newClientThread(socket, id);
-            //Giver sessionmanageren socket og id
+            //Passes socket and id to sessionmanager
             sessionManager.addClient(socket, id);
         } catch (IOException e) {
             e.printStackTrace();
@@ -98,11 +98,11 @@ class Client implements Runnable{
     private void receiveRequest(){
         try {
             try {
-                //Læs JSONObject fra klienten
+                //Read JSONObject from client
                 String received = bufferedReader.readLine();
                 JSONObject jsonObject = (JSONObject) jsonParser.parse(received);
 
-                //Hiver hvilken service der skal bruges (String) og billede (BufferedImage) ud
+                //Reads which service og pulls image from JSONObject
                 String base64bytes = (String) jsonObject.get("image");
                 byte[] bytes = Base64.getDecoder().decode(base64bytes);
 
@@ -112,7 +112,7 @@ class Client implements Runnable{
 
                 System.out.println("received image from " + id + "...");
 
-                //Så bliver det sendt over til distributoren
+                //This info is then sent to the distributor
                 distributor.addJob(id, service, imageFromBytes);
             } catch (ParseException e) {
                 e.printStackTrace();

@@ -36,7 +36,7 @@ public class Distributor {
     public Distributor(ResponseHandler responseHandler) {
         this.responseHandler = responseHandler;
 
-        //Starter de to threads til håndtering af de to køer
+        //Starts the two threads that handles the two queues
         Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue, responseHandler));
         Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue, responseHandler));
         googleThread.start();
@@ -102,6 +102,7 @@ class GoogleQueueHandler implements Runnable{
         }
     }
 
+    //Converts BufferedImage to Google Vision Image
     private com.google.cloud.vision.v1.Image convertImage(BufferedImage image){
         try {
             //Convert bufferedImage to ByteString
