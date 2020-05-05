@@ -80,24 +80,49 @@ class GoogleQueueHandler implements Runnable{
         if(queue.peek() != null){
             Job job = queue.remove();
 
-            System.out.println("sending image to google from " + job.getId() + "...");
+            Thread jobThread = new Thread(new GoogleJob(responseHandler, job, vision));
+            jobThread.start();
+        }
+    }
 
-            //Build image annotation request
-            List<AnnotateImageRequest> requests = new ArrayList<>();
-            Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
-            AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
-            requests.add(request);
+    @Override
+    public void run() {
+        while(true){
+            processJob();
+        }
+    }
+}
 
-            System.out.println("received data from google to " + job.getId() + "...");
+class GoogleJob implements Runnable{
 
-            //Get response
-            BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
-            List<AnnotateImageResponse> responses = response.getResponsesList();
+    private ResponseHandler responseHandler;
+    private Job job;
+    private ImageAnnotatorClient vision;
 
-            for(AnnotateImageResponse res : responses){
-                for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
-                    System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
-                }
+    public GoogleJob(ResponseHandler responseHandler, Job job, ImageAnnotatorClient vision) {
+        this.responseHandler = responseHandler;
+        this.job = job;
+        this.vision = vision;
+    }
+
+    private void processJob(){
+        System.out.println("sending image to google from " + job.getId() + "...");
+
+        //Build image annotation request
+        List<AnnotateImageRequest> requests = new ArrayList<>();
+        Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
+        AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
+        requests.add(request);
+
+        System.out.println("received data from google to " + job.getId() + "...");
+
+        //Get response
+        BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
+        List<AnnotateImageResponse> responses = response.getResponsesList();
+
+        for(AnnotateImageResponse res : responses){
+            for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
+                System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
             }
         }
     }
@@ -123,9 +148,7 @@ class GoogleQueueHandler implements Runnable{
 
     @Override
     public void run() {
-        while(true){
-            processJob();
-        }
+        processJob();
     }
 }
 
@@ -171,6 +194,7 @@ class AmazonJob implements Runnable{
 
     public AmazonJob(ResponseHandler responseHandler, Job job) {
         this.responseHandler = responseHandler;
+        this.job = job;
     }
 
     private void processJob(){
