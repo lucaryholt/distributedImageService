@@ -6,10 +6,7 @@ import Model.Job;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 
 import Model.Result;
 import com.amazonaws.services.rekognition.AmazonRekognition;
@@ -31,28 +28,32 @@ public class Distributor {
     private Queue<Job> googleQueue = new LinkedList<>();
     private Queue<Job> amazonQueue = new LinkedList<>();
 
+    private Random random = new Random();
+
     private ResponseHandler responseHandler;
 
     public Distributor(ResponseHandler responseHandler) {
         this.responseHandler = responseHandler;
 
         //Starts the two threads that handles the two queues
-        Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue, responseHandler));
-        Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue, responseHandler));
+        Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue, responseHandler, this));
+        Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue, responseHandler, this));
         googleThread.start();
         amazonThread.start();
     }
 
     //Tager imod jobs fra RequestHandleren og deler dem ud til de rigtige køer
-    public synchronized void addJob(int id, String service, BufferedImage image){
+    public synchronized void addJob(int id, BufferedImage image){
         Job job = new Job(id, image);
-        switch (service){
-            case "google"   :   googleQueue.add(job);
-                                System.out.println("added job to google queue from " + id + "...");
-                                break;
-            case "amazon"   :   amazonQueue.add(job);
-                                System.out.println("added job to amazon queue from " + id + "...");
-                                break;
+        if(random.nextInt(10) < 3){
+            googleQueue.add(job);
+            System.out.println("added job to google queue from " + id + "...");
+        }else{
+            amazonQueue.add(job);
+            System.out.println("added job to amazon queue from " + id + "...");
+        }
+        synchronized (this){
+            notifyAll();
         }
     }
 
@@ -62,17 +63,19 @@ class GoogleQueueHandler implements Runnable{
 
     private Queue<Job> queue;
     private ResponseHandler responseHandler;
+    private Distributor distributor;
     private ImageAnnotatorClient vision;
 
     //TODO Can't authorize at the moment. Have tried setting environment variables on Windows and Mac
     //Google just can't read them for some reason... But logic should work.
-    public GoogleQueueHandler(Queue<Job> queue, ResponseHandler responseHandler) {
+    public GoogleQueueHandler(Queue<Job> queue, ResponseHandler responseHandler, Distributor distributor) {
         this.queue = queue;
         this.responseHandler = responseHandler;
+        this.distributor = distributor;
         try {
             vision = ImageAnnotatorClient.create();
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Google authentication failed...");
         }
     }
 
@@ -80,50 +83,32 @@ class GoogleQueueHandler implements Runnable{
         if(queue.peek() != null){
             Job job = queue.remove();
 
-            Thread jobThread = new Thread(new GoogleJob(responseHandler, job, vision));
-            jobThread.start();
-        }
-    }
+            System.out.println("sending image to google from " + job.getId() + "...");
 
-    @Override
-    public void run() {
-        while(true){
-            processJob();
-        }
-    }
-}
+            //Build image annotation request
+            List<AnnotateImageRequest> requests = new ArrayList<>();
+            Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
+            AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
+            requests.add(request);
 
-class GoogleJob implements Runnable{
+            System.out.println("received data from google to " + job.getId() + "...");
 
-    private ResponseHandler responseHandler;
-    private Job job;
-    private ImageAnnotatorClient vision;
+            //Get response
+            if (vision != null) {
+                BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
+                List<AnnotateImageResponse> responses = response.getResponsesList();
 
-    public GoogleJob(ResponseHandler responseHandler, Job job, ImageAnnotatorClient vision) {
-        this.responseHandler = responseHandler;
-        this.job = job;
-        this.vision = vision;
-    }
-
-    private void processJob(){
-        System.out.println("sending image to google from " + job.getId() + "...");
-
-        //Build image annotation request
-        List<AnnotateImageRequest> requests = new ArrayList<>();
-        Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
-        AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
-        requests.add(request);
-
-        System.out.println("received data from google to " + job.getId() + "...");
-
-        //Get response
-        BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
-        List<AnnotateImageResponse> responses = response.getResponsesList();
-
-        for(AnnotateImageResponse res : responses){
-            for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
-                System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
+                for(AnnotateImageResponse res : responses){
+                    for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
+                        System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
+                    }
+                }
             }
+
+            //As this is not working ATM we just send a "fake" result back
+            List<String> fakeResult = new ArrayList<>();
+            fakeResult.add("This is an image");
+            responseHandler.sendResult(new Result(fakeResult, job.getId()));
         }
     }
 
@@ -148,7 +133,21 @@ class GoogleJob implements Runnable{
 
     @Override
     public void run() {
-        processJob();
+        while(true){
+            try{
+                System.out.println("Google ready");
+                synchronized (distributor){
+                    distributor.wait();
+                }
+                System.out.println("Google working");
+                if(!queue.isEmpty()){
+                    processJob();
+                }
+            } catch (Exception e){
+                System.out.println("Google queue: " + e.toString());
+                e.printStackTrace();
+            }
+        }
     }
 }
 
@@ -156,62 +155,35 @@ class AmazonQueueHandler implements Runnable{
 
     private Queue<Job> queue;
     private ResponseHandler responseHandler;
+    private Distributor distributor;
 
-    public AmazonQueueHandler(Queue<Job> queue, ResponseHandler responseHandler) {
+    public AmazonQueueHandler(Queue<Job> queue, ResponseHandler responseHandler, Distributor distributor) {
         this.queue = queue;
         this.responseHandler = responseHandler;
+        this.distributor = distributor;
     }
 
     private void processJob(){
-        //System.out.println("checking.");
         if(queue.size() != 0){
             //See source: https://docs.aws.amazon.com/rekognition/latest/dg/images-bytes.html
 
             Job job = queue.remove();
 
-            Thread jobThread = new Thread(new AmazonJob(responseHandler, job));
-            jobThread.start();
-        }
-    }
+            System.out.println("sending image to amazon from " + job.getId() + "...");
 
-    @Override
-    public void run() {
-        while(true){
-            processJob();
-            try {
-                Thread.sleep(50); //Without this it does not work... I have no idea why...
-            } catch (InterruptedException e) {
+            try{
+                AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
+
+                //Send and get response from Amazon
+                DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
+
+                System.out.println("received data from amazon to " + job.getId() + "...");
+
+                //Instantiate new Result object, then pass it to ResponseHandler
+                responseHandler.sendResult(makeResultFromRequest(result, job));
+            } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
-    }
-}
-
-class AmazonJob implements Runnable{
-
-    private ResponseHandler responseHandler;
-    private Job job;
-
-    public AmazonJob(ResponseHandler responseHandler, Job job) {
-        this.responseHandler = responseHandler;
-        this.job = job;
-    }
-
-    private void processJob(){
-        System.out.println("sending image to amazon from " + job.getId() + "...");
-
-        try{
-            AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
-
-            //Send and get response from Amazon
-            DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
-
-            System.out.println("received data from amazon to " + job.getId() + "...");
-
-            //Instantiate new Result object, then pass it to ResponseHandler
-            responseHandler.sendResult(makeResultFromRequest(result, job));
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -249,6 +221,19 @@ class AmazonJob implements Runnable{
 
     @Override
     public void run() {
-        processJob();
+        while(true){
+            try{
+                System.out.println("Amazon ready");
+                synchronized (distributor){
+                    distributor.wait();
+                }
+                System.out.println("Amazon working");
+                if(!queue.isEmpty()){
+                    processJob();
+                }
+            } catch (Exception e){
+                System.out.println("Amazon queue: " + e.toString());
+            }
+        }
     }
 }
