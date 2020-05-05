@@ -15,7 +15,7 @@ public class ResponseHandler {
         this.sessionManager = sessionManager;
     }
 
-    public void sendResult(Result result) {
+    public synchronized void sendResult(Result result) {
         int clientId = result.getId();
         try {
             // Get socket from session manager
