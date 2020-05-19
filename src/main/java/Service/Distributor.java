@@ -15,9 +15,7 @@ import com.amazonaws.services.rekognition.model.DetectLabelsRequest;
 import com.amazonaws.services.rekognition.model.DetectLabelsResult;
 import com.amazonaws.services.rekognition.model.Image;
 import com.amazonaws.services.rekognition.model.Label;
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.vision.v1.*;
-import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 
 import javax.imageio.ImageIO;
@@ -30,11 +28,7 @@ public class Distributor {
 
     private Random random = new Random();
 
-    private ResponseHandler responseHandler;
-
     public Distributor(ResponseHandler responseHandler) {
-        this.responseHandler = responseHandler;
-
         //Starts the two threads that handles the two queues
         Thread googleThread = new Thread(new GoogleQueueHandler(googleQueue, responseHandler, this));
         Thread amazonThread = new Thread(new AmazonQueueHandler(amazonQueue, responseHandler, this));
@@ -66,8 +60,6 @@ class GoogleQueueHandler implements Runnable{
     private Distributor distributor;
     private ImageAnnotatorClient vision;
 
-    //TODO Can't authorize at the moment. Have tried setting environment variables on Windows and Mac
-    //Google just can't read them for some reason... But logic should work.
     public GoogleQueueHandler(Queue<Job> queue, ResponseHandler responseHandler, Distributor distributor) {
         this.queue = queue;
         this.responseHandler = responseHandler;
@@ -80,40 +72,38 @@ class GoogleQueueHandler implements Runnable{
     }
 
     private void processJob(){
-        if(queue.peek() != null){
-            Job job = queue.remove();
+        Job job = queue.remove();
 
-            System.out.println("sending image to google from " + job.getId() + "...");
+        System.out.println("sending image to google from " + job.getId() + "...");
 
-            //Build image annotation request
-            List<AnnotateImageRequest> requests = new ArrayList<>();
-            Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
-            AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
-            requests.add(request);
+        //Build image annotation request
+        List<AnnotateImageRequest> requests = new ArrayList<>();
+        Feature feat = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
+        AnnotateImageRequest request = AnnotateImageRequest.newBuilder().addFeatures(feat).setImage(convertImage(job.getImage())).build();
+        requests.add(request);
 
-            System.out.println("received data from google to " + job.getId() + "...");
+        //Get response
+        BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
 
-            List<String> results = new ArrayList<>();
-            results.add("Results from Google Vision:");
+        System.out.println("received data from google to " + job.getId() + "...");
 
-            //Get response
-            if (vision != null) {
-                BatchAnnotateImagesResponse response = vision.batchAnnotateImages(requests);
-                List<AnnotateImageResponse> responses = response.getResponsesList();
+        //The result is handed to the ResponseHandler
+        responseHandler.sendResult(makeResultFromResponse(response, job));
+    }
 
-                for(AnnotateImageResponse res : responses){
-                    for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
-                        System.out.println(annotation.getDescription() + " ... " + annotation.getScore());
-                    }
-                }
-            }else{
-                //As this is not working ATM we just send a "fake" result back
-                results.add("This is an image");
+    private Result makeResultFromResponse(BatchAnnotateImagesResponse response, Job job){
+        List<String> results = new ArrayList<>();
+        results.add("Results from Google Vision:");
+
+        List<AnnotateImageResponse> responses = response.getResponsesList();
+
+        for(AnnotateImageResponse res : responses){
+            for(EntityAnnotation annotation : res.getLabelAnnotationsList()){
+                results.add(annotation.getDescription() + ": " + annotation.getScore());
             }
-
-            //The result is handed to the ResponseHandler
-            responseHandler.sendResult(new Result(results, job.getId()));
         }
+
+        return new Result(results, job.getId());
     }
 
     //Converts BufferedImage to Google Vision Image
@@ -139,13 +129,13 @@ class GoogleQueueHandler implements Runnable{
     public void run() {
         while(true){
             try{
+                if(!queue.isEmpty()){
+                    System.out.println("Google working");
+                    processJob();
+                }
                 System.out.println("Google ready");
                 synchronized (distributor){
                     distributor.wait();
-                }
-                System.out.println("Google working");
-                if(!queue.isEmpty()){
-                    processJob();
                 }
             } catch (Exception e){
                 System.out.println("Google queue: " + e.toString());
@@ -168,26 +158,24 @@ class AmazonQueueHandler implements Runnable{
     }
 
     private void processJob(){
-        if(queue.size() != 0){
-            //See source: https://docs.aws.amazon.com/rekognition/latest/dg/images-bytes.html
+        //See source: https://docs.aws.amazon.com/rekognition/latest/dg/images-bytes.html
 
-            Job job = queue.remove();
+        Job job = queue.remove();
 
-            System.out.println("sending image to amazon from " + job.getId() + "...");
+        System.out.println("sending image to amazon from " + job.getId() + "...");
 
-            try{
-                AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
+        try{
+            AmazonRekognition rekognitionClient = AmazonRekognitionClientBuilder.defaultClient();
 
-                //Send and get response from Amazon
-                DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
+            //Send and get response from Amazon
+            DetectLabelsResult result = rekognitionClient.detectLabels(makeRequestFromJob(job));
 
-                System.out.println("received data from amazon to " + job.getId() + "...");
+            System.out.println("received data from amazon to " + job.getId() + "...");
 
-                //Instantiate new Result object, then pass it to ResponseHandler
-                responseHandler.sendResult(makeResultFromRequest(result, job));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            //Instantiate new Result object, then pass it to ResponseHandler
+            responseHandler.sendResult(makeResultFromRequest(result, job));
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -228,13 +216,13 @@ class AmazonQueueHandler implements Runnable{
     public void run() {
         while(true){
             try{
+                if(!queue.isEmpty()){
+                    System.out.println("Amazon working");
+                    processJob();
+                }
                 System.out.println("Amazon ready");
                 synchronized (distributor){
                     distributor.wait();
-                }
-                System.out.println("Amazon working");
-                if(!queue.isEmpty()){
-                    processJob();
                 }
             } catch (Exception e){
                 System.out.println("Amazon queue: " + e.toString());
