@@ -57,7 +57,7 @@ class GoogleQueueHandler implements Runnable{
 
     private Queue<Job> queue;
     private ResponseHandler responseHandler;
-    private Distributor distributor;
+    private final Distributor distributor;
     private ImageAnnotatorClient vision;
 
     public GoogleQueueHandler(Queue<Job> queue, ResponseHandler responseHandler, Distributor distributor) {
